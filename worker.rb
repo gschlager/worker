@@ -3,20 +3,28 @@
 require "oj"
 
 class Worker
-  def initialize(index, input_queue, output_queue)
+  def initialize(index, input_queue, output_queue, job)
     @index = index
     @input_queue = input_queue
     @output_queue = output_queue
+    @job = job
 
     @threads = []
   end
 
   def start
     start_fork
-    start_input_thread
-    start_output_thread
+    start_input_ractor
+    start_output_ractor
+  end
 
-    @threads.each(&:join)
+  def wait
+    @input_ractor.take if @input_ractor
+    @writer.close if @writer
+    Process.waitpid(@worker_pid) if @worker_pid
+    @reader.close if @reader
+    @output_ractor.take if @output_ractor
+    nil
   end
 
   private
@@ -34,8 +42,8 @@ class Worker
           io_from_child.close
 
           Oj.load(io_from_parent) do |data|
-            # do some work
-            child_writer.write(Oj.dump(data))
+            result = @job.run(data)
+            child_writer.write(Oj.dump(result))
           end
         rescue SignalException
           exit(1)
@@ -49,34 +57,29 @@ class Worker
     @reader = io_from_child
   end
 
-  def start_input_thread
-    Thread.new do
-      Thread.current.name = "worker_#{@index}_input"
-
-      begin
-        while (data = @input_queue.pop)
-          @writer.write(Oj.dump(data))
+  def start_input_ractor
+    @input_ractor =
+      Ractor.new(@input_queue, @writer) do |input_queue, writer|
+        while (data = input_queue.pop)
+          writer.write(Oj.dump(data))
+          Ractor.receive
         end
-      rescue => e
-        warn "Worker thread #{@index} encountered an error: #{e.message}"
-      ensure
-        @writer.close
-        Process.waitpid(@worker_pid)
       end
-    end
   end
 
-  def start_output_thread
-    @threads << Thread.new do
-      Thread.current.name = "worker_#{@index}_output"
+  def start_output_ractor
+    @output_ractor =
+      Ractor.new(
+        @output_queue,
+        @writer,
+        @input_ractor
+      ) do |output_queue, reader, input_ractor|
+        Oj.load(reader) do |data|
+          # signal `input_ractor` to write new data to the fork
+          input_ractor.send
 
-      begin
-        Oj.load(@reader) { |data| @output_queue.push(data) }
-      rescue => e
-        warn "Worker thread #{@index} encountered an error: #{e.message}"
-      ensure
-        @reader.close
+          output_queue.push(data)
+        end
       end
-    end
   end
 end

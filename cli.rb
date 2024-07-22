@@ -10,6 +10,14 @@ gemfile(true) do
   gem "oj"
 end
 
+require_relative "worker"
+
+class Job
+  def run(data)
+    puts data
+  end
+end
+
 class App
   ROW_COUNT = Etc.nprocessors * 200_000
 
@@ -19,7 +27,14 @@ class App
   end
 
   def start
-    producer = Producer.new(ROW_COUNT, @input_queue)
+    10.times { |i| @input_queue << "Item #{i}" }
+    @input_queue.close
+
+    worker = Worker.new(1, @input_queue, @output_queue, Job.new)
+    worker.start
+    worker.wait
+
+    puts "Done"
   end
 end
 
