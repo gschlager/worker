@@ -8,6 +8,8 @@ gemfile(true) do
 
   gem "extralite-bundle"
   gem "oj"
+  gem "fiber_scheduler"
+  gem "io-event"
 end
 
 require_relative "worker"
@@ -37,5 +39,3 @@ class App
     puts "Done"
   end
 end
-
-App.new.start

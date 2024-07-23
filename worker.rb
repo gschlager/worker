@@ -8,22 +8,19 @@ class Worker
     @input_queue = input_queue
     @output_queue = output_queue
     @job = job
-
-    @threads = []
   end
 
   def start
     start_fork
-    start_input_ractor
-    start_output_ractor
+    start_input_fiber
+    start_output_fiber
   end
 
   def wait
-    @input_ractor.take if @input_ractor
+    Fiber.yield while @input_fiber.alive? || @output_fiber.alive?
     @writer.close if @writer
     Process.waitpid(@worker_pid) if @worker_pid
     @reader.close if @reader
-    @output_ractor.take if @output_ractor
     nil
   end
 
@@ -57,29 +54,25 @@ class Worker
     @reader = io_from_child
   end
 
-  def start_input_ractor
-    @input_ractor =
-      Ractor.new(@input_queue, @writer) do |input_queue, writer|
-        while (data = input_queue.pop)
-          writer.write(Oj.dump(data))
-          Ractor.receive
+  def start_input_fiber
+    @input_fiber =
+      Fiber.new do
+        while (data = @input_queue.pop)
+          @writer.write(Oj.dump(data))
+          Fiber.yield
         end
       end
+    @input_fiber.resume
   end
 
-  def start_output_ractor
-    @output_ractor =
-      Ractor.new(
-        @output_queue,
-        @writer,
-        @input_ractor
-      ) do |output_queue, reader, input_ractor|
-        Oj.load(reader) do |data|
-          # signal `input_ractor` to write new data to the fork
-          input_ractor.send
-
-          output_queue.push(data)
+  def start_output_fiber
+    @output_fiber =
+      Fiber.new do
+        Oj.load(@reader) do |data|
+          @output_queue.push(data)
+          Fiber.yield
         end
       end
+    @output_fiber.resume
   end
 end
