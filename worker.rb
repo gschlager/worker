@@ -15,9 +15,23 @@ class Worker
   end
 
   def start
-    start_fork
-    start_input_thread
-    start_output_thread
+    parent_input_stream, parent_output_stream = IO.pipe
+    fork_input_stream, fork_output_stream = IO.pipe
+
+    worker_pid =
+      start_fork(
+        parent_input_stream,
+        parent_output_stream,
+        fork_input_stream,
+        fork_output_stream
+      )
+
+    fork_output_stream.close
+    parent_input_stream.close
+
+    start_input_thread(parent_output_stream, worker_pid)
+    start_output_thread(fork_input_stream)
+
     self
   end
 
@@ -27,61 +41,56 @@ class Worker
 
   private
 
-  def start_fork
-    io_from_parent, parent_writer = IO.pipe
-    io_from_child, child_writer = IO.pipe
+  def start_fork(
+    parent_input_stream,
+    parent_output_stream,
+    fork_input_stream,
+    fork_output_stream
+  )
+    Process.fork do
+      begin
+        Process.setproctitle("worker_process#{@index}")
 
-    @worker_pid =
-      Process.fork do
-        begin
-          Process.setproctitle("worker_process#{@index}")
+        parent_output_stream.close
+        fork_input_stream.close
 
-          parent_writer.close
-          io_from_child.close
-
-          Oj.load(io_from_parent) do |data|
-            @job.run(data)
-            child_writer.write(Oj.dump(data))
-          end
-        rescue SignalException
-          exit(1)
+        Oj.load(parent_input_stream) do |data|
+          @job.run(data)
+          fork_output_stream.write(Oj.dump(data))
         end
+      rescue SignalException
+        exit(1)
       end
-
-    child_writer.close
-    io_from_parent.close
-
-    @writer = parent_writer
-    @reader = io_from_child
+    end
   end
 
-  def start_input_thread
+  def start_input_thread(output_stream, worker_pid)
     @threads << Thread.new do
       Thread.current.name = "worker_#{@index}_input"
 
       begin
         while (data = @input_queue.pop)
-          @writer.write(Oj.dump(data))
+          output_stream.write(Oj.dump(data))
           @mutex.synchronize { @data_processed.wait(@mutex) }
         end
       ensure
-        @writer.close
-        Process.waitpid(@worker_pid)
+        output_stream.close
+        Process.waitpid(worker_pid)
       end
     end
   end
 
-  def start_output_thread
+  def start_output_thread(input_stream)
     @threads << Thread.new do
       Thread.current.name = "worker_#{@index}_output"
 
       begin
-        Oj.load(@reader) do |data|
+        Oj.load(input_stream) do |data|
           @output_queue.push(data)
           @mutex.synchronize { @data_processed.signal }
         end
       ensure
-        @reader.close
+        input_stream.close
       end
     end
   end
