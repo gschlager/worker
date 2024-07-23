@@ -26,10 +26,7 @@ class Writer
       @stmt.execute(data.fetch_values(:id, :name, :email, :created_at, :bio))
     end
 
-    @stmt.close
-    @db.close
-  rescue => e
-    puts e
+    close
   end
 
   private
@@ -48,5 +45,10 @@ class Writer
     @db.execute(SQL_TABLE)
 
     @stmt = @db.prepare(SQL_INSERT)
+  end
+
+  def close
+    @stmt.close
+    @db.close
   end
 end

@@ -10,9 +10,9 @@ gemfile(true) do
   gem "oj"
 end
 
+require_relative "database"
 require_relative "producer"
 require_relative "job"
-require_relative "writer"
 require_relative "worker"
 
 # RubyVM::YJIT.enable
@@ -29,25 +29,34 @@ class App
   def start
     start = Time.now
 
+    db_path = File.expand_path("./output/test.db")
+    db = Database.new(db_path)
+    db.open_database(init: true)
+    db.close
+
     producer_thread =
       Thread.new do
         Thread.current.name = "producer"
         Producer.new(ROW_COUNT, @input_queue).start
       end
 
+    status_thread =
+      Thread.new do
+        while (stats = @output_queue.pop)
+          # do nothing
+        end
+        @output_queue.close
+      end
+
+    source_db_paths = []
     workers = []
     WORKER_COUNT.times do |index|
-      worker = Worker.new(index, @input_queue, @output_queue, Job.new)
+      db_path = File.expand_path("./output/temp/#{index}/temp.db")
+      source_db_paths << db_path
+      worker = Worker.new(index, @input_queue, @output_queue, Job.new, db_path)
       workers << worker
       worker.start
     end
-
-    writer_thread =
-      Thread.new do
-        Thread.current.name = "writer"
-        db_path = File.expand_path("./output/test.db")
-        Writer.new(db_path, @output_queue).start
-      end
 
     producer_thread.join
     @input_queue.close
@@ -57,8 +66,13 @@ class App
     @output_queue.close
     puts "Workers done"
 
-    writer_thread.join
-    puts "Writer done"
+    status_thread.join
+    puts "Status thread done"
+
+    db = Database.new(db_path)
+    db.open_database(init: false)
+    db.copy_from(source_db_paths)
+    db.close
 
     seconds = Time.now - start
     puts "Done -- #{seconds} seconds"
