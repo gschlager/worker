@@ -10,30 +10,51 @@ gemfile(true) do
   gem "oj"
 end
 
+require_relative "producer"
+require_relative "job"
+require_relative "writer"
 require_relative "worker"
 
-class Job
-  def run(data)
-    sleep(1)
-    puts data
-  end
-end
-
 class App
-  ROW_COUNT = Etc.nprocessors * 200_000
+  WORKER_COUNT = [1, Etc.nprocessors - 1].max
+  ROW_COUNT = Etc.nprocessors * 10
 
-  def initialize()
+  def initialize
     @input_queue = SizedQueue.new(5_000)
     @output_queue = SizedQueue.new(5_000)
   end
 
   def start
-    10.times { |i| @input_queue << "Item #{i} #{"a" * 100} X" }
-    @input_queue.close
+    producer_thread =
+      Thread.new do
+        Thread.current.name = "producer"
+        Producer.new(ROW_COUNT, @input_queue).start
+      end
 
-    worker = Worker.new(1, @input_queue, @output_queue, Job.new)
-    worker.start
-    worker.wait
+    writer_thread =
+      Thread.new do
+        Thread.current.name = "writer"
+        db_path = File.expand_path("./output/test.db")
+        Writer.new(db_path, @output_queue).start
+      end
+
+    workers = []
+    WORKER_COUNT.times do |index|
+      worker = Worker.new(index, @input_queue, @output_queue, Job.new)
+      workers << worker
+      worker.start
+    end
+
+    producer_thread.join
+    @input_queue.close
+    puts "Producer done"
+
+    workers.each(&:wait)
+    @output_queue.close
+    puts "Workers done"
+
+    writer_thread.join
+    puts "Writer done"
 
     puts "Done"
   end

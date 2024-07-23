@@ -8,10 +8,11 @@ class Writer
       id          INTEGER,
       name        TEXT,
       email       TEXT,
-      created_at  DATETIME
+      created_at  DATETIME,
+      bio         TEXT
     )
   SQL
-  SQL_INSERT = "INSERT INTO users VALUES (?, ?, ?, ?)"
+  SQL_INSERT = "INSERT INTO users VALUES (?, ?, ?, ?, ?)"
 
   def initialize(db_path, queue)
     @db_path = db_path
@@ -21,7 +22,7 @@ class Writer
 
   def start
     while (data = @queue.pop)
-      @stmt.execute(data)
+      @stmt.execute(data.fetch_values(:id, :name, :email, :created_at, :bio))
     end
 
     @stmt.close
@@ -31,7 +32,9 @@ class Writer
   private
 
   def open_database
-    FileUtils.mkdir_p(File.dirname(@db_path))
+    db_directory_path = File.dirname(@db_path)
+    FileUtils.rm_rf(db_directory_path)
+    FileUtils.mkdir_p(db_directory_path)
 
     @db = Extralite::Database.new(@db_path)
     @db.pragma(

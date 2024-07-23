@@ -8,7 +8,13 @@ class Producer
 
   def start
     (1..@count).each do |i|
-      @queue << [1, "John", "john@example.com", "2023-12-29T11:10:04Z"]
+      @queue << {
+        id: i,
+        name: "John",
+        email: "john@example.com",
+        created_at: "2023-12-29T11:10:04Z",
+        bio: "a" * 100
+      }
     end
   end
 end
