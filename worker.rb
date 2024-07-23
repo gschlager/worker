@@ -1,32 +1,22 @@
 # frozen_string_literal: true
 
-require "fiber_scheduler"
-# require "io/event"
 require "oj"
 
 class Worker
-  def initialize(index, input_queue, output_queue, job)
+  def initialize(index, input_queue, output_queue)
     @index = index
     @input_queue = input_queue
     @output_queue = output_queue
-    @job = job
+
+    @threads = []
   end
 
   def start
     start_fork
+    start_input_thread
+    start_output_thread
 
-    FiberScheduler do
-      start_input_fiber
-      start_output_fiber
-    end
-  end
-
-  def wait
-    Fiber.yield while @input_fiber.alive? || @output_fiber.alive?
-    @writer.close if @writer
-    Process.waitpid(@worker_pid) if @worker_pid
-    @reader.close if @reader
-    nil
+    @threads.each(&:join)
   end
 
   private
@@ -44,8 +34,8 @@ class Worker
           io_from_child.close
 
           Oj.load(io_from_parent) do |data|
-            result = @job.run(data)
-            child_writer.write(Oj.dump(result))
+            # do some work
+            child_writer.write(Oj.dump(data))
           end
         rescue SignalException
           exit(1)
@@ -59,25 +49,34 @@ class Worker
     @reader = io_from_child
   end
 
-  def start_input_fiber
-    @input_fiber =
-      Fiber.new(blocking: false) do
+  def start_input_thread
+    Thread.new do
+      Thread.current.name = "worker_#{@index}_input"
+
+      begin
         while (data = @input_queue.pop)
           @writer.write(Oj.dump(data))
-          Fiber.yield
         end
+      rescue => e
+        warn "Worker thread #{@index} encountered an error: #{e.message}"
+      ensure
+        @writer.close
+        Process.waitpid(@worker_pid)
       end
-    @input_fiber.resume
+    end
   end
 
-  def start_output_fiber
-    @output_fiber =
-      Fiber.new(blocking: false) do
-        Oj.load(@reader) do |data|
-          @output_queue.push(data)
-          Fiber.yield
-        end
+  def start_output_thread
+    @threads << Thread.new do
+      Thread.current.name = "worker_#{@index}_output"
+
+      begin
+        Oj.load(@reader) { |data| @output_queue.push(data) }
+      rescue => e
+        warn "Worker thread #{@index} encountered an error: #{e.message}"
+      ensure
+        @reader.close
       end
-    @output_fiber.resume
+    end
   end
 end
