@@ -9,8 +9,6 @@ class Worker
     @output_queue = output_queue
     @job = job
 
-    @mutex = Mutex.new
-    @data_processed = ConditionVariable.new
     @threads = []
   end
 
@@ -71,7 +69,6 @@ class Worker
       begin
         while (data = @input_queue.pop)
           output_stream.write(Oj.dump(data))
-          @mutex.synchronize { @data_processed.wait(@mutex) }
         end
       ensure
         output_stream.close
@@ -85,10 +82,7 @@ class Worker
       Thread.current.name = "worker_#{@index}_output"
 
       begin
-        Oj.load(input_stream) do |data|
-          @output_queue.push(data)
-          @mutex.synchronize { @data_processed.signal }
-        end
+        Oj.load(input_stream) { |data| @output_queue.push(data) }
       ensure
         input_stream.close
       end
