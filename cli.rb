@@ -15,6 +15,8 @@ require_relative "job"
 require_relative "writer"
 require_relative "worker"
 
+RubyVM::YJIT.enable
+
 class App
   WORKER_COUNT = [1, Etc.nprocessors - 1].max
   ROW_COUNT = Etc.nprocessors * 10_000
