@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "fiber_scheduler"
+# require "io/event"
 require "oj"
 
 class Worker
@@ -12,8 +14,11 @@ class Worker
 
   def start
     start_fork
-    start_input_fiber
-    start_output_fiber
+
+    FiberScheduler do
+      start_input_fiber
+      start_output_fiber
+    end
   end
 
   def wait
@@ -56,7 +61,7 @@ class Worker
 
   def start_input_fiber
     @input_fiber =
-      Fiber.new do
+      Fiber.new(blocking: false) do
         while (data = @input_queue.pop)
           @writer.write(Oj.dump(data))
           Fiber.yield
@@ -67,7 +72,7 @@ class Worker
 
   def start_output_fiber
     @output_fiber =
-      Fiber.new do
+      Fiber.new(blocking: false) do
         Oj.load(@reader) do |data|
           @output_queue.push(data)
           Fiber.yield

@@ -25,7 +25,7 @@ class App
 
   def initialize()
     @input_queue = SizedQueue.new(5_000)
-    @writer_queue = SizedQueue.new(5_000)
+    @output_queue = SizedQueue.new(5_000)
   end
 
   def start
@@ -39,3 +39,5 @@ class App
     puts "Done"
   end
 end
+
+App.new.start
