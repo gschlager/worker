@@ -9,6 +9,8 @@ class Worker
     @output_queue = output_queue
     @job = job
 
+    @mutex = Mutex.new
+    @data_processed = ConditionVariable.new
     @threads = []
   end
 

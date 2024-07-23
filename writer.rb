@@ -17,16 +17,19 @@ class Writer
   def initialize(db_path, queue)
     @db_path = db_path
     @queue = queue
-    open_database
   end
 
   def start
+    open_database
+
     while (data = @queue.pop)
       @stmt.execute(data.fetch_values(:id, :name, :email, :created_at, :bio))
     end
 
     @stmt.close
     @db.close
+  rescue => e
+    puts e
   end
 
   private

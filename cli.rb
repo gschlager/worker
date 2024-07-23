@@ -17,7 +17,7 @@ require_relative "worker"
 
 class App
   WORKER_COUNT = [1, Etc.nprocessors - 1].max
-  ROW_COUNT = Etc.nprocessors * 10
+  ROW_COUNT = Etc.nprocessors * 10_000
 
   def initialize
     @input_queue = SizedQueue.new(5_000)
@@ -25,17 +25,12 @@ class App
   end
 
   def start
+    start = Time.now
+
     producer_thread =
       Thread.new do
         Thread.current.name = "producer"
         Producer.new(ROW_COUNT, @input_queue).start
-      end
-
-    writer_thread =
-      Thread.new do
-        Thread.current.name = "writer"
-        db_path = File.expand_path("./output/test.db")
-        Writer.new(db_path, @output_queue).start
       end
 
     workers = []
@@ -44,6 +39,13 @@ class App
       workers << worker
       worker.start
     end
+
+    writer_thread =
+      Thread.new do
+        Thread.current.name = "writer"
+        db_path = File.expand_path("./output/test.db")
+        Writer.new(db_path, @output_queue).start
+      end
 
     producer_thread.join
     @input_queue.close
@@ -56,7 +58,8 @@ class App
     writer_thread.join
     puts "Writer done"
 
-    puts "Done"
+    seconds = Time.now - start
+    puts "Done -- #{seconds} seconds"
   end
 end
 
