@@ -3,11 +3,14 @@
 require "oj"
 
 class Worker
-  def initialize(index, input_queue, output_queue)
+  def initialize(index, input_queue, output_queue, job)
     @index = index
     @input_queue = input_queue
     @output_queue = output_queue
+    @job = job
 
+    @mutex = Mutex.new
+    @data_processed = ConditionVariable.new
     @threads = []
   end
 
@@ -15,7 +18,10 @@ class Worker
     start_fork
     start_input_thread
     start_output_thread
+    self
+  end
 
+  def wait
     @threads.each(&:join)
   end
 
@@ -34,7 +40,7 @@ class Worker
           io_from_child.close
 
           Oj.load(io_from_parent) do |data|
-            # do some work
+            @job.run(data)
             child_writer.write(Oj.dump(data))
           end
         rescue SignalException
@@ -50,15 +56,14 @@ class Worker
   end
 
   def start_input_thread
-    Thread.new do
+    @threads << Thread.new do
       Thread.current.name = "worker_#{@index}_input"
 
       begin
         while (data = @input_queue.pop)
           @writer.write(Oj.dump(data))
+          @mutex.synchronize { @data_processed.wait(@mutex) }
         end
-      rescue => e
-        warn "Worker thread #{@index} encountered an error: #{e.message}"
       ensure
         @writer.close
         Process.waitpid(@worker_pid)
@@ -71,9 +76,10 @@ class Worker
       Thread.current.name = "worker_#{@index}_output"
 
       begin
-        Oj.load(@reader) { |data| @output_queue.push(data) }
-      rescue => e
-        warn "Worker thread #{@index} encountered an error: #{e.message}"
+        Oj.load(@reader) do |data|
+          @output_queue.push(data)
+          @mutex.synchronize { @data_processed.signal }
+        end
       ensure
         @reader.close
       end
