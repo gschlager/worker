@@ -57,6 +57,7 @@ class Writer
       journal_mode: "wal",
       synchronous: "off"
     )
+    @db.gvl_release_threshold = -1
     @db.execute(SQL_TABLE)
 
     @stmt = @db.prepare(SQL_INSERT)
