@@ -18,8 +18,8 @@ require_relative "worker"
 # RubyVM::YJIT.enable
 
 class App
-  WORKER_COUNT = [1, Etc.nprocessors - 1].max
-  ROW_COUNT = Etc.nprocessors * 10_000
+  WORKER_COUNT = [1, Etc.nprocessors].max
+  ROW_COUNT = Etc.nprocessors * 100_000
 
   def initialize
     @input_queue = SizedQueue.new(5_000)
