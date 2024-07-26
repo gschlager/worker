@@ -42,9 +42,14 @@ class App
 
     status_thread =
       Thread.new do
+        count = 0
+
         while (stats = @output_queue.pop)
-          # do nothing
+          count += 1
+          print "\r#{count}"
         end
+
+        puts ""
         @output_queue.close
       end
 
@@ -72,6 +77,9 @@ class App
     db = Database.new(db_path)
     db.open_database(init: false)
     db.copy_from(source_db_paths)
+    if db.db.query_single_splat("SELECT COUNT(*) FROM users") != ROW_COUNT
+      puts "Wrong count"
+    end
     db.close
 
     seconds = Time.now - start

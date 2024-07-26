@@ -23,11 +23,15 @@ class Writer
 
   def start
     open_database
+    count = 0
 
     while (data = @queue.pop)
       begin_transaction if @statement_counter.zero?
 
       @stmt.execute(data.fetch_values(:id, :name, :email, :created_at, :bio))
+
+      count += 1
+      print "\r#{count}"
 
       if (@statement_counter += 1) >= TRANSACTION_BATCH_SIZE
         commit_transaction

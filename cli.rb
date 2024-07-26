@@ -62,6 +62,12 @@ class App
 
     seconds = Time.now - start
     puts "Done -- #{seconds} seconds"
+
+    db = Extralite::Database.new(File.expand_path("./output/test.db"))
+    if db.query_single_splat("SELECT COUNT(*) FROM users") != ROW_COUNT
+      puts "Wrong count"
+    end
+    db.close
   end
 end
 

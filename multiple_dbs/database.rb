@@ -17,6 +17,8 @@ class Database
   SQL_INSERT = "INSERT INTO users VALUES (?, ?, ?, ?, ?)"
   TRANSACTION_BATCH_SIZE = 1_000
 
+  attr_reader :db
+
   def initialize(db_path)
     @db_path = db_path
     @statement_counter = 0
