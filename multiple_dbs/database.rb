@@ -19,8 +19,9 @@ class Database
 
   attr_reader :db
 
-  def initialize(db_path)
+  def initialize(db_path, journal_mode = "wal")
     @db_path = db_path
+    @journal_mode = journal_mode
     @statement_counter = 0
   end
 
@@ -45,8 +46,11 @@ class Database
     @db = Extralite::Database.new(@db_path)
     @db.pragma(
       busy_timeout: 60_000, # 60 seconds
-      journal_mode: "wal",
-      synchronous: "off"
+      journal_mode: @journal_mode,
+      synchronous: "off",
+      temp_store: "memory",
+      locking_mode: @journal_mode == "wal" ? "normal" : "exclusive",
+      cache_size: -10_000 # 10_000 pages
     )
     @db.execute(SQL_TABLE) if init
 
