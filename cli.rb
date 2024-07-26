@@ -64,8 +64,9 @@ class App
     puts "Done -- #{seconds} seconds"
 
     db = Extralite::Database.new(File.expand_path("./output/test.db"))
-    if db.query_single_splat("SELECT COUNT(*) FROM users") != ROW_COUNT
-      puts "Wrong count"
+    if (count = db.query_single_splat("SELECT COUNT(*) FROM users")) !=
+         ROW_COUNT
+      puts "Wrong count: #{count}"
     end
     db.close
   end

@@ -56,9 +56,10 @@ class App
     source_db_paths = []
     workers = []
     WORKER_COUNT.times do |index|
-      db_path = File.expand_path("./output/temp/#{index}/temp.db")
-      source_db_paths << db_path
-      worker = Worker.new(index, @input_queue, @output_queue, Job.new, db_path)
+      temp_db_path = File.expand_path("./output/temp/#{index}/temp.db")
+      source_db_paths << temp_db_path
+      worker =
+        Worker.new(index, @input_queue, @output_queue, Job.new, temp_db_path)
       workers << worker
       worker.start
     end
@@ -77,8 +78,9 @@ class App
     db = Database.new(db_path)
     db.open_database(init: false)
     db.copy_from(source_db_paths)
-    if db.db.query_single_splat("SELECT COUNT(*) FROM users") != ROW_COUNT
-      puts "Wrong count"
+    if (count = db.db.query_single_splat("SELECT COUNT(*) FROM users")) !=
+         ROW_COUNT
+      puts "Wrong count: #{count}"
     end
     db.close
 
