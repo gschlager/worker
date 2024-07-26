@@ -28,7 +28,9 @@ class Writer
     while (data = @queue.pop)
       begin_transaction if @statement_counter.zero?
 
-      @stmt.execute(data.fetch_values(:id, :name, :email, :created_at, :bio))
+      @stmt.execute(
+        data[:data].fetch_values(:id, :name, :email, :created_at, :bio)
+      )
 
       count += 1
       print "\r#{count}"

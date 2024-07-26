@@ -55,9 +55,11 @@ class Worker
         parent_output_stream.close
         fork_input_stream.close
 
+        stats = { progress: 1, error_count: 0, warning_count: 0 }
+
         Oj.load(parent_input_stream) do |data|
           @job.run(data)
-          fork_output_stream.write(Oj.dump({}))
+          fork_output_stream.write(Oj.dump(stats))
         end
       rescue SignalException
         exit(1)
