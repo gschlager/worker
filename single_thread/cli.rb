@@ -13,7 +13,7 @@ end
 require_relative "../multiple_dbs/database"
 
 class App
-  ROW_COUNT = Etc.nprocessors * 100_000
+  ROW_COUNT = Etc.nprocessors * 1_000
 
   def start
     start = Time.now
@@ -30,6 +30,10 @@ class App
         created_at: "2023-12-29T11:10:04Z",
         bio: "a" * 100
       }
+
+      # simulate work
+      10.times { |a| 100_000.downto(1) { |b| Math.sqrt(b) * a / 0.2 } }
+
       db.insert(data)
     end
 

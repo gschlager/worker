@@ -2,8 +2,9 @@
 
 class Job
   def run(data)
-    # sleep(0.5)
-    # sleep(0.1)
+    # simulate work
+    10.times { |a| 100_000.downto(1) { |b| Math.sqrt(b) * a / 0.2 } }
+
     data
   end
 end
