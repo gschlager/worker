@@ -18,7 +18,7 @@ require_relative "worker"
 # RubyVM::YJIT.enable
 
 class App
-  WORKER_COUNT = [1, Etc.nprocessors - 1].max
+  WORKER_COUNT = [1, Etc.nprocessors].max
   ROW_COUNT = Etc.nprocessors * 1_000
 
   def initialize
