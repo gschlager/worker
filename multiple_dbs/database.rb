@@ -28,7 +28,7 @@ class Database
   def insert(data)
     begin_transaction if @statement_counter.zero?
 
-    @stmt.execute(data.fetch_values("id", "name", "email", "created_at", "bio"))
+    @stmt.execute(data.fetch_values(:id, :name, :email, :created_at, :bio))
 
     if (@statement_counter += 1) >= TRANSACTION_BATCH_SIZE
       commit_transaction

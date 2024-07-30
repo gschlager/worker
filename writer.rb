@@ -29,7 +29,7 @@ class Writer
       begin_transaction if @statement_counter.zero?
 
       @stmt.execute(
-        data["data"].fetch_values("id", "name", "email", "created_at", "bio")
+        data[:data].fetch_values(:id, :name, :email, :created_at, :bio)
       )
 
       count += 1
