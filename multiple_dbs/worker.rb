@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "oj"
+require "msgpack"
 
 class Worker
   def initialize(index, input_queue, output_queue, job, db_path)
@@ -57,10 +57,16 @@ class Worker
 
         stats = { progress: 1, error_count: 0, warning_count: 0 }
 
-        Oj.load(parent_input_stream) do |data|
-          @job.run(data)
-          fork_output_stream.write(Oj.dump(stats))
-        end
+        packer = MessagePack::Packer.new(fork_output_stream)
+
+        MessagePack::Unpacker
+          .new(parent_input_stream)
+          .each do |data|
+            @job.run(data)
+            packer.write(stats)
+          end
+
+        packer.flush
       rescue SignalException
         exit(1)
       ensure
@@ -74,9 +80,13 @@ class Worker
       Thread.current.name = "worker_#{@index}_input"
 
       begin
+        packer = MessagePack::Packer.new(output_stream)
+
         while (data = @input_queue.pop)
-          output_stream.write(Oj.dump(data))
+          packer.write(data)
         end
+
+        packer.flush
       ensure
         output_stream.close
         Process.waitpid(worker_pid)
@@ -89,7 +99,9 @@ class Worker
       Thread.current.name = "worker_#{@index}_output"
 
       begin
-        Oj.load(input_stream) { |data| @output_queue.push(data) }
+        MessagePack::Unpacker
+          .new(input_stream)
+          .each { |data| @output_queue.push(data) }
       ensure
         input_stream.close
       end
