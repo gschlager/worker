@@ -20,10 +20,11 @@ require_relative "worker"
 class App
   WORKER_COUNT = [1, Etc.nprocessors - 1].max
   ROW_COUNT = Etc.nprocessors * 1_000
+  QUEUE_SIZE = Etc.nprocessors * 100
 
   def initialize
-    @input_queue = SizedQueue.new(5_000)
-    @output_queue = SizedQueue.new(5_000)
+    @input_queue = SizedQueue.new(QUEUE_SIZE)
+    @output_queue = SizedQueue.new(QUEUE_SIZE)
   end
 
   def start

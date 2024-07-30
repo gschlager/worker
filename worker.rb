@@ -3,6 +3,8 @@
 require "oj"
 
 class Worker
+  Oj.default_options = { mode: :custom }
+
   def initialize(index, input_queue, output_queue, job)
     @index = index
     @input_queue = input_queue
@@ -10,6 +12,8 @@ class Worker
     @job = job
 
     @threads = []
+    @mutex = Mutex.new
+    @data_processed = ConditionVariable.new
   end
 
   def start
@@ -54,9 +58,9 @@ class Worker
 
         stats = { progress: 1, error_count: 0, warning_count: 0 }
 
-        Oj.load(parent_input_stream) do |data|
+        load_json(parent_input_stream) do |data|
           result = @job.run(data)
-          fork_output_stream.write(Oj.dump({ data: result, stats: }))
+          Oj.to_stream(fork_output_stream, { data: result, stats: })
         end
       rescue SignalException
         exit(1)
@@ -70,7 +74,8 @@ class Worker
 
       begin
         while (data = @input_queue.pop)
-          output_stream.write(Oj.dump(data))
+          Oj.to_stream(output_stream, data)
+          @mutex.synchronize { @data_processed.wait(@mutex) }
         end
       ensure
         output_stream.close
@@ -84,10 +89,28 @@ class Worker
       Thread.current.name = "worker_#{@index}_output"
 
       begin
-        Oj.load(input_stream) { |data| @output_queue.push(data) }
+        load_json(input_stream) do |data|
+          @output_queue.push(data)
+          @mutex.synchronize { @data_processed.signal }
+        end
       ensure
         input_stream.close
       end
     end
+  end
+
+  def load_json(input_stream)
+    parser = Oj::Parser.new(:usual, cache_keys: true, symbol_keys: true)
+
+    while true
+      data = +""
+      while (buffer = input_stream.readpartial(4096))
+        data << buffer
+        break if buffer.length < 4096
+      end
+      yield parser.parse(buffer)
+    end
+  rescue EOFError
+    # ignore
   end
 end
