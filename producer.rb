@@ -13,7 +13,7 @@ class Producer
         name: "John",
         email: "john@example.com",
         created_at: "2023-12-29T11:10:04Z",
-        bio: "a" * 100
+        bio: "a" * 10_000
       }
     end
   end
