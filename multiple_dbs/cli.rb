@@ -7,7 +7,7 @@ gemfile(true) do
   source "https://rubygems.org"
 
   gem "extralite-bundle"
-  gem "oj"
+  gem "oj", github: "ohler55/oj", branch: "parser-multi-load"
 end
 
 require_relative "database"

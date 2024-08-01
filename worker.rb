@@ -58,7 +58,7 @@ class Worker
 
         stats = { progress: 1, error_count: 0, warning_count: 0 }
 
-        load_json(parent_input_stream) do |data|
+        json_parser.load(parent_input_stream) do |data|
           result = @job.run(data)
           Oj.to_stream(fork_output_stream, { data: result, stats: })
         end
@@ -89,7 +89,7 @@ class Worker
       Thread.current.name = "worker_#{@index}_output"
 
       begin
-        load_json(input_stream) do |data|
+        json_parser.load(input_stream) do |data|
           @output_queue.push(data)
           @mutex.synchronize { @data_processed.signal }
         end
@@ -99,18 +99,7 @@ class Worker
     end
   end
 
-  def load_json(input_stream)
-    parser = Oj::Parser.new(:usual, cache_keys: true, symbol_keys: true)
-
-    while true
-      data = +""
-      while (buffer = input_stream.readpartial(4096))
-        data << buffer
-        break if buffer.length < 4096
-      end
-      yield parser.parse(buffer)
-    end
-  rescue EOFError
-    # ignore
+  def json_parser
+    Oj::Parser.new(:usual, cache_keys: true, symbol_keys: true)
   end
 end
