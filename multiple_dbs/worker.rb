@@ -3,6 +3,8 @@
 require "oj"
 
 class Worker
+  Oj.default_options = { mode: :custom }
+
   def initialize(index, input_queue, output_queue, job, db_path)
     @index = index
     @input_queue = input_queue
@@ -11,6 +13,8 @@ class Worker
     @db_path = db_path
 
     @threads = []
+    @mutex = Mutex.new
+    @data_processed = ConditionVariable.new
   end
 
   def start
@@ -57,9 +61,9 @@ class Worker
 
         stats = { progress: 1, error_count: 0, warning_count: 0 }
 
-        Oj.load(parent_input_stream) do |data|
+        json_parser.load(parent_input_stream) do |data|
           @job.run(data)
-          fork_output_stream.write(Oj.dump(stats))
+          Oj.to_stream(fork_output_stream, stats)
         end
       rescue SignalException
         exit(1)
@@ -75,7 +79,8 @@ class Worker
 
       begin
         while (data = @input_queue.pop)
-          output_stream.write(Oj.dump(data))
+          Oj.to_stream(output_stream, data)
+          @mutex.synchronize { @data_processed.wait(@mutex) }
         end
       ensure
         output_stream.close
@@ -89,10 +94,17 @@ class Worker
       Thread.current.name = "worker_#{@index}_output"
 
       begin
-        Oj.load(input_stream) { |data| @output_queue.push(data) }
+        json_parser.load(input_stream) do |data|
+          @output_queue.push(data)
+          @mutex.synchronize { @data_processed.signal }
+        end
       ensure
         input_stream.close
       end
     end
+  end
+
+  def json_parser
+    Oj::Parser.new(:usual, cache_keys: true, symbol_keys: true)
   end
 end
